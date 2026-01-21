@@ -5,41 +5,20 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"text/template"
 
 	"github.com/shaheerkj/snippetbox/internal/models"
 )
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Server", "Go")
 	snippets, err := app.snippets.Latest()
 
 	if err != nil {
 		app.serverError(w, r, err)
 		return
 	}
-
-	for _, snippet := range snippets {
-		fmt.Fprintf(w, "%+v\n", snippet)
-	}
-
-	// files := []string{"./ui/html/pages/base.html", "./ui/html/pages/home.html", "./ui/html/pages/nav.html"}
-	// ts, err := template.ParseFiles(files...)
-
-	// if err != nil {
-	// 	log.Print(err.Error())
-	// 	app.serverError(w, r, err)
-	// 	return
-	// }
-
-	// err = ts.ExecuteTemplate(w, "base", nil)
-
-	// if err != nil {
-	// 	app.serverError(w, r, err)
-	// 	return
-
-	// }
-
+	data := app.newTemplateData(r)
+	data.Snippets = snippets
+	app.render(w, r, http.StatusOK, "home.html", data)
 }
 func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 
@@ -59,40 +38,48 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	files := []string{"./ui/html/base.html", "./ui/html/pages/view.html", "./ui/html/partials/nav.html"}
-
-	ts, err := template.ParseFiles(files...)
-	if err != nil {
-		app.serverError(w, r, err)
-		return
-	}
-
-	data := templateData{
-		Snippet: snippet,
-	}
-
-	err = ts.ExecuteTemplate(w, "base", data)
-	if err != nil {
-		app.serverError(w, r, err)
-		return
-	}
+	data := app.newTemplateData(r)
+	data.Snippet = snippet
+	app.render(w, r, http.StatusOK, "view.html", data)
 }
 func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Display a form for creating a new snippet..."))
+	// w.Write([]byte("Display a form for creating a new snippet..."))
+	data := app.newTemplateData(r)
+	app.render(w, r, http.StatusOK, "create.html", data)
 }
 func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request) {
 
-	title := "O snail"
-	content := "Climb mount fuji"
-	expires := 7
+	err := r.ParseForm()
 
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	title := r.PostForm.Get("title")
+	content := r.PostForm.Get("content")
+	expires, err := strconv.Atoi(r.PostForm.Get("expires"))
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
 	id, err := app.snippets.Insert(title, content, expires)
-
 	if err != nil {
 		app.serverError(w, r, err)
 		return
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
+
+	// title := "O snail"
+	// content := "Climb mount fuji"
+	// expires := 7
+
+	// id, err := app.snippets.Insert(title, content, expires)
+
+	// if err != nil {
+	// 	app.serverError(w, r, err)
+	// 	return
+	// }
 
 }
