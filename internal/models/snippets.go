@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// Snippet represents a code snippet stored in the database
 type Snippet struct {
 	ID      int
 	Title   string
@@ -14,21 +15,27 @@ type Snippet struct {
 	Expires time.Time
 }
 
+// SnippetModel wraps a database connection pool
+// All database operations for snippets are methods on this type
 type SnippetModel struct {
 	DB *sql.DB
 }
 
+// Insert adds a new snippet to the database and returns its ID
+// The expires parameter is the number of days until expiration
 func (m *SnippetModel) Insert(title string, content string, expires int) (int, error) {
-	stmt := `INSERT INTO snippets(title,content,created,expires) VALUES(?,?,UTC_TIMESTAMP(),DATE_ADD(UTC_TIMESTAMP(),INTERVAL ? DAY))`
+	// SQL statement with placeholders (?) to prevent SQL injection
+	stmt := `INSERT INTO snippets(title,content,created,expires) 
+	         VALUES(?,?,UTC_TIMESTAMP(),DATE_ADD(UTC_TIMESTAMP(),INTERVAL ? DAY))`
 
+	// Execute the SQL statement with parameters
 	result, err := m.DB.Exec(stmt, title, content, expires)
-
 	if err != nil {
 		return 0, err
 	}
 
+	// Get the ID of the newly inserted record
 	id, err := result.LastInsertId()
-
 	if err != nil {
 		return 0, err
 	}
@@ -36,58 +43,71 @@ func (m *SnippetModel) Insert(title string, content string, expires int) (int, e
 	return int(id), nil
 }
 
+// Get retrieves a specific snippet by ID
+// Returns ErrNoRecord if the snippet doesn't exist or has expired
 func (m *SnippetModel) Get(id int) (Snippet, error) {
+	// Only return snippets that haven't expired yet
+	stmt := `SELECT id, title, content, created, expires 
+	         FROM snippets 
+	         WHERE expires > UTC_TIMESTAMP() AND id = ?`
 
-	stmt := `select id, title, content, created, expires from snippets where expires > UTC_TIMESTAMP() AND ID = ?`
-
+	// QueryRow returns at most one row
 	row := m.DB.QueryRow(stmt, id)
 
+	// Initialize empty Snippet struct
 	var s Snippet
 
+	// Scan the result into the struct fields
 	err := row.Scan(&s.ID, &s.Title, &s.Content, &s.Created, &s.Expires)
-
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			// No matching record found
 			return Snippet{}, ErrNoRecord
-		} else {
-			return Snippet{}, err
 		}
-
+		// Some other database error
+		return Snippet{}, err
 	}
 
 	return s, nil
 }
 
+// Latest returns the 10 most recently created non-expired snippets
 func (m *SnippetModel) Latest() ([]Snippet, error) {
+	// Get the 10 most recent snippets that haven't expired
+	stmt := `SELECT id, title, content, created, expires 
+	         FROM snippets 
+	         WHERE expires > UTC_TIMESTAMP() 
+	         ORDER BY id DESC 
+	         LIMIT 10`
 
-	stmt := `select id, title, content, created, expires from snippets where expires > UTC_TIMESTAMP() order by id desc limit 10`
-
+	// Query returns multiple rows
 	rows, err := m.DB.Query(stmt)
-
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close() // Ensure rows are closed when function returns
 
-	defer rows.Close()
-
+	// Initialize empty slice to hold snippets
 	var snippets []Snippet
 
+	// Iterate through all returned rows
 	for rows.Next() {
 		var s Snippet
-
-		err := rows.Scan(&s.ID, &s.Title, &s.Title, &s.Created, &s.Expires)
-
+		// Scan each row into a Snippet struct
+		err := rows.Scan(&s.ID, &s.Title, &s.Content, &s.Created, &s.Expires)
 		if err != nil {
 			return nil, err
 		}
+		// Add snippet to slice
 		snippets = append(snippets, s)
 	}
 
+	// Check for any errors that occurred during iteration
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return snippets, err
+	return snippets, nil
 
 	// stmt := `select id, title, content, created, expires from snippets where expires > UTC_TIMESTAMP() ORDER BY ID DESC LIMIT 10`
 
