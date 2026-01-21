@@ -15,6 +15,7 @@ type templateData struct {
 	Snippets    []models.Snippet // Multiple snippets (for home page)
 	CurrentYear int              // Current year for footer
 	Form        any              // Form data and validation errors
+	Flash       string
 }
 
 // humanDate formats a time.Time into a human-readable string

@@ -2,9 +2,12 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/go-playground/form/v4"
 )
 
 // newTemplateData creates a templateData struct populated with common data
@@ -13,6 +16,7 @@ import (
 func (app *application) newTemplateData(r *http.Request) templateData {
 	return templateData{
 		CurrentYear: time.Now().Year(), // Used in footer copyright
+		Flash:       app.sessionManager.PopString(r.Context(), "flash"),
 	}
 }
 
@@ -25,7 +29,7 @@ func (app *application) serverError(w http.ResponseWriter, r *http.Request, err 
 
 	// Log the error with structured logging (includes method and URI for debugging)
 	app.logger.Error(err.Error(), "method", method, "uri", uri)
-	
+
 	// Send generic 500 error response to user (don't leak error details)
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
@@ -59,4 +63,26 @@ func (app *application) render(w http.ResponseWriter, r *http.Request, status in
 	// If template executed successfully, write status and content
 	w.WriteHeader(status)
 	buf.WriteTo(w)
+}
+
+// Helper to check for errors in the form parsing, e.g if we pass a
+// non-nil dst pointer to the form.Decode() function, it will cause a different kind
+// of error that can't be classified simply as a 4XX/400
+func (app *application) decodePostForm(r *http.Request, dst any) error {
+
+	err := r.ParseForm()
+	if err != nil {
+		return err
+	}
+
+	err = app.formDecoder.Decode(dst, r.PostForm)
+	if err != nil {
+
+		var invalidDecoderError *form.InvalidDecoderError
+		if errors.As(err, &invalidDecoderError) {
+			panic(err)
+		}
+		return err
+	}
+	return err
 }
