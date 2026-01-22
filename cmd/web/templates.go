@@ -11,11 +11,13 @@ import (
 // templateData holds dynamic data that's passed to HTML templates
 // Provides a consistent structure for all template data
 type templateData struct {
-	Snippet     models.Snippet   // Single snippet (for view page)
-	Snippets    []models.Snippet // Multiple snippets (for home page)
-	CurrentYear int              // Current year for footer
-	Form        any              // Form data and validation errors
-	Flash       string
+	Snippet         models.Snippet   // Single snippet (for view page)
+	Snippets        []models.Snippet // Multiple snippets (for home page)
+	CurrentYear     int              // Current year for footer
+	Form            any              // Form data and validation errors
+	Flash           string
+	IsAuthenticated bool
+	CSRFToken       string
 }
 
 // humanDate formats a time.Time into a human-readable string

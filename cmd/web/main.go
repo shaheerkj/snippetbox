@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"database/sql"
 	"flag"
 	"log/slog"
@@ -19,8 +20,9 @@ import (
 // application holds application-wide dependencies and shared resources
 // These are injected into handlers via receiver methods
 type application struct {
-	logger         *slog.Logger                  // Structured logger for application-wide logging
-	snippets       *models.SnippetModel          // Database model for snippet operations
+	logger         *slog.Logger         // Structured logger for application-wide logging
+	snippets       *models.SnippetModel // Database model for snippet operations
+	users          *models.UserModel
 	templateCache  map[string]*template.Template // Pre-parsed templates for better performance
 	formDecoder    *form.Decoder
 	sessionManager *scs.SessionManager
@@ -63,14 +65,24 @@ func main() {
 	app := &application{
 		logger:         logger,
 		snippets:       &models.SnippetModel{DB: db}, // Initialize snippet model with DB connection
+		users:          &models.UserModel{DB: db},
 		templateCache:  templateCache,
 		formDecoder:    formDecoder,
 		sessionManager: sessionManager,
 	}
+
+	tlsConfig := &tls.Config{
+		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
+	}
+
 	srv := &http.Server{
-		Addr:     *addr,
-		Handler:  app.routes(),
-		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		Addr:         *addr,
+		Handler:      app.routes(),
+		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		TLSConfig:    tlsConfig,
+		IdleTimeout:  time.Minute,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 	logger.Info("Starting server", "addr", *addr)
 

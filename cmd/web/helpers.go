@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-playground/form/v4"
+	"github.com/justinas/nosurf"
 )
 
 // newTemplateData creates a templateData struct populated with common data
@@ -15,8 +16,10 @@ import (
 // Takes *http.Request as parameter for future expansion (sessions, auth, etc.)
 func (app *application) newTemplateData(r *http.Request) templateData {
 	return templateData{
-		CurrentYear: time.Now().Year(), // Used in footer copyright
-		Flash:       app.sessionManager.PopString(r.Context(), "flash"),
+		CurrentYear:     time.Now().Year(), // Used in footer copyright
+		Flash:           app.sessionManager.PopString(r.Context(), "flash"),
+		IsAuthenticated: app.isAuthenticated(r),
+		CSRFToken:       nosurf.Token(r),
 	}
 }
 
@@ -85,4 +88,8 @@ func (app *application) decodePostForm(r *http.Request, dst any) error {
 		return err
 	}
 	return err
+}
+
+func (app *application) isAuthenticated(r *http.Request) bool {
+	return app.sessionManager.Exists(r.Context(), "authenticatedUserID")
 }
